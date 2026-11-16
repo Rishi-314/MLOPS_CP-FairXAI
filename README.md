@@ -17,7 +17,7 @@ Q&A, and a split of sections and MLOps tools across three presenters.
 
 ## Contents
 - [Status](#status)
-- [Results so far](#results-so-far)
+- [Results](#results)
 - [Architecture](#architecture)
 - [Repository layout](#repository-layout)
 - [Prerequisites](#prerequisites)
@@ -25,7 +25,6 @@ Q&A, and a split of sections and MLOps tools across three presenters.
 - [Using the system](#using-the-system)
 - [Tests and CI](#tests-and-ci)
 - [Configuration](#configuration)
-- [Continuing the project (Phases 9–12)](#continuing-the-project-phases-912)
 - [Troubleshooting](#troubleshooting)
 - [Known limitations](#known-limitations)
 
@@ -44,16 +43,12 @@ Q&A, and a split of sections and MLOps tools across three presenters.
 | 6 | FastAPI serving slots, blue-green gateway, Prometheus | Done | [phase_6](docs/evidence/phase_6.md) |
 | 7 | `/v1/explain` with SHAP | Done | [phase_7](docs/evidence/phase_7.md) |
 | 8 | Monitoring, Evidently drift, triggers, Grafana | Done | [phase_8](docs/evidence/phase_8.md) |
-| 9 | Deployment + rollback, retraining, Airflow DAGs, simulator faults | **Next** | – |
-| 10 | Integration tests | Not started | – |
-| 11 | Full CI/CD (security, Trivy, release), deploy-code script | Not started | – |
-| 12 | Dashboard polish, model card, `make demo` | Not started | – |
 
 Design decisions taken during implementation, and every `[VERIFY]` finding against pinned libraries,
 are in [`docs/decision_log.md`](docs/decision_log.md). Measured resource figures are in
 [`docs/resource-report.md`](docs/resource-report.md).
 
-## Results so far
+## Results
 
 All numbers are from real runs on the UCI data; details are in the evidence files.
 
@@ -112,9 +107,9 @@ src/fairxai/      all logic: data/, features/, models/, fairness/, explain/, reg
 serving/          slot FastAPI app + Dockerfile
 gateway/          gateway FastAPI app + Dockerfile
 infra/            compose/, postgres/schema.sql, mlflow/, prometheus/, grafana/
-pipelines/        expectations/ (Great Expectations suites); dags/ arrive in Phase 9
+pipelines/        expectations/ (Great Expectations suites)
 scripts/          prepare_raw.py, profile_data.py, make_env.py, init_stack.py, check_tree.py
-tests/            unit/ data/ model/ api/ (+ integration/ in Phase 10); fixtures are SYNTHETIC
+tests/            unit/ data/ model/ api/; fixtures are SYNTHETIC
 docs/             SPEC.md, decision_log.md, resource-report.md, evidence/
 ```
 
@@ -123,7 +118,7 @@ docs/             SPEC.md, decision_log.md, resource-report.md, evidence/
 | Tool | Notes |
 | --- | --- |
 | Git | |
-| Docker Desktop (Compose v2) | Give it **at least 8 GB** of memory; the current stack idles at about 2.5 GB, and Airflow (Phase 9) adds about 2 GB |
+| Docker Desktop (Compose v2) | Give it **at least 8 GB** of memory; the stack idles at about 2.5 GB |
 | Python **3.11** exactly | e.g. `uv python install 3.11` ([uv](https://docs.astral.sh/uv/)) |
 | `make` (optional) | Not installed on Windows by default. Every target is a short command in the [`Makefile`](Makefile) you can run by hand |
 
@@ -231,8 +226,7 @@ python -m fairxai.monitoring.run              # add --engine scipy to bypass Evi
 ```
 It writes one row per signal to `monitoring_results` (`data_quality`, `feature_drift`,
 `prediction_drift`, `performance`, `fairness`) with status `OK`/`WARN`/`ALERT`/`NA`, and evaluates the
-retraining triggers. Batch replay helpers are in `src/fairxai/simulator/replay.py` (the simulator CLI
-and fault scenarios arrive in Phase 9).
+retraining triggers. Batch replay helpers are in `src/fairxai/simulator/replay.py`.
 
 ### Dashboards
 - Grafana: http://127.0.0.1:3000 (user `admin`, password `GRAFANA_ADMIN_PASSWORD` from `.env`), folder **FairXAI**
@@ -250,8 +244,8 @@ pytest tests                                                               # = m
   `export FAIRXAI_TEST_DB_URL=postgresql://fairxai:<POSTGRES_PASSWORD>@127.0.0.1:5432/fairxai`;
   otherwise they are skipped (and reported as skipped, not passed).
 - Registry and tracking tests use a real local MLflow (sqlite in a temp dir), not mocks.
-- GitHub Actions (`.github/workflows/ci.yml`) currently runs the `lint-test` job on every push. Security
-  scans, image builds, Trivy, the integration stack and the release job are Phase 11.
+- GitHub Actions (`.github/workflows/ci.yml`) runs the `lint-test` job (ruff, tree check, tests) on every
+  push.
 
 ## Configuration
 
@@ -270,27 +264,6 @@ N-03, N-04, N-05, N-08):
 | Retraining | drift in 3 consecutive windows or performance drop in 2; cooldown 60 min; ≤ 3 per week | retraining.yaml |
 
 Select a profile with `FAIRXAI_PROFILE=demo|test` (shorter cooldowns, 3 Optuna trials for `test`).
-
-## Continuing the project (Phases 9–12)
-
-Anyone can continue this by hand or with any coding assistant. Claude Code is not required.
-
-1. Read [`docs/SPEC.md`](docs/SPEC.md): Section C (decisions) and D (contracts) are binding, Section E is
-   the file layout, **Section F lists each phase's files, tests and exit criteria**, Section H is the final
-   checklist. Section G is a ready-made prompt if you use an AI coding assistant.
-2. Read the latest evidence file and [`docs/decision_log.md`](docs/decision_log.md) to see what already
-   deviates from the spec and why.
-3. Rules that keep the project honest:
-   - write real command output to `docs/evidence/phase_<N>.md`; never invent numbers;
-   - never loosen a threshold, gate or test to get a green result;
-   - fixtures and synthetic data must be labelled as such;
-   - record every deviation from the spec in `docs/decision_log.md`;
-   - commit once per phase, naming the phase and the tests that passed.
-
-What Phase 9 needs next (SPEC F, D.8, D.9): `src/fairxai/deploy/deploy.py` (G6 live-slot check, flip,
-G7 observation, automatic rollback), `src/fairxai/retrain/retrain.py` (acquire / throttle / export /
-train / decide), the seven DAGs in `pipelines/dags/`, `infra/airflow/Dockerfile`, Airflow services in
-compose, and `src/fairxai/simulator/{__main__,faults,fault_models}.py`.
 
 ## Troubleshooting
 
