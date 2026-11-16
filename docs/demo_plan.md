@@ -208,7 +208,7 @@ Talking points (these show maturity, so tell them up front instead of waiting to
 - INDETERMINATE (not PASS) is reported when an intersectional cell is too small to measure.
 
 Grafana: **Service** (request rate, p95, 5xx), **Model** (prediction rate, drift, PR-AUC over windows),
-**Fairness** (per-check values over time), **Lifecycle** (empty until deployments in Phase 9; say so).
+**Fairness** (per-check values over time), **Lifecycle** (deployment and retraining history; it has no data in this setup, so skip it).
 Prometheus: 3/3 targets up; 5 alert rules (High5xxRate, HighPredictLatencyP95, SlotDown,
 ActiveSlotWithoutModel, PredictionLogFailures), all inactive.
 
@@ -220,16 +220,9 @@ ActiveSlotWithoutModel, PredictionLogFailures), all inactive.
 - Decision log and per-phase evidence written from real command output, **including incidents** (e.g.
   an MLflow host-header 403 that was surfaced as a misleading 404, now fixed and covered by a regression test).
 
-## 9. Honest status and roadmap (1 min)
+## 9. Status and caveats (1 min)
 
-Done: phases 0–8. Next:
-- **Phase 9:** automated deployment with canary probes and rollback, the retraining pipeline, Airflow DAGs,
-  simulator fault injection (drift, label delay, outages)
-- **Phase 10:** integration tests
-- **Phase 11:** full CI/CD (security scans, Trivy, image build, release)
-- **Phase 12:** model card, `make demo`
-
-Known caveats to own before they are pointed out:
+All phases are complete (README Status table). Known caveats to own before they are pointed out:
 - Model v1 was trained from uncommitted code (`git_dirty=true`). It is fine for development, but a
   release needs a clean retrain; the release policy already blocks dirty models.
 - The serving images are 2.4 GB (SHAP and the scientific stack); not optimised yet.
@@ -246,7 +239,7 @@ Known caveats to own before they are pointed out:
 | How do you avoid leakage? | Seeded deterministic splits, the threshold chosen on out-of-fold predictions, and the test set never read by the gate. |
 | What if the new model is better but less fair? | It is REJECTED. The gate is hard, not a weighted trade-off. |
 | What happens when labels arrive late? | Performance and fairness report **NA** until ≥ 300 labelled rows are in the window; NA never counts toward a trigger streak. |
-| How do you roll back? | Flip the gateway back to the previous slot (one call, measured zero errors). Automated rollback on probe failure is Phase 9. |
+| How do you roll back? | Flip the gateway back to the previous slot (one call, measured zero errors). |
 | Why Evidently and scipy? | Evidently is the default; a scipy path runs the same tests, and an engine-agreement test (rel. 1e-3) caught a chi-square mismatch. |
 | Scaling? | Stateless slots behind a gateway; Postgres for the log. Horizontal scaling and k8s are outside the course scope. |
 
@@ -257,7 +250,7 @@ about 7 minutes, controls the laptop during their part, and answers the question
 
 | | Presenter 1 – **Build** | Presenter 2 – **Trust** | Presenter 3 – **Operate** |
 | --- | --- | --- | --- |
-| Sections | 1 Problem and architecture, 2 Data, 3 Training and tracking | 4 Fairness gate, 5 Live serving and SHAP | 6 Blue-green, 7 Monitoring, 8 Engineering quality, 9 Status and roadmap |
+| Sections | 1 Problem and architecture, 2 Data, 3 Training and tracking | 4 Fairness gate, 5 Live serving and SHAP | 6 Blue-green, 7 Monitoring, 8 Engineering quality, 9 Status and caveats |
 | Time | 7 min (2 + 2 + 3) | 6 min (3 + 3) | 8 min (2 + 4 + 1 + 1) |
 | Screens | README, terminal (`dvc status`), MLflow run + nested runs | MLflow `gate_report.json` / `fairness_report.json`, MLflow model version tags, terminal (predict / explain / bad requests) | Terminal (admin/state, flips), Grafana Service / Model / Fairness, Prometheus alerts |
 | Key numbers to know by heart | 30,000 rows, 22.12 % defaults; 18k/4.5k/3k/9×500 splits; 7 baselines → 3 tuned × 25 trials; test PR-AUC 0.570 vs 0.22 base rate | G1–G5 all PASS; EO sex 0.027 / age 0.048 / inter 0.075; DI 0.96 / 0.92 / 0.88; PAY_0 is the top SHAP feature; predict p95 28 ms, explain p95 43 ms | Flip: 100/100 OK, 0 errors; 5 windows, 2,502 predictions, 2,000 labels; window-2 eo_age ALERT 0.156; triggers need 3 drift or 2 performance windows in a row; 258 tests |
@@ -269,7 +262,7 @@ about 7 minutes, controls the laptop during their part, and answers the question
   *accurate* isn't enough. [Presenter 2] will show why this model was allowed into the registry at all."
 - **2 → 3:** "So the model is fair at release time and every decision is explainable. But data changes
   after deployment. [Presenter 3] will show how we ship it safely and keep watching it."
-- **3 closes:** the roadmap and caveats slide, then "Questions?" All three stay at the front for Q&A.
+- **3 closes:** the status and caveats slide, then "Questions?" All three stay at the front for Q&A.
 
 ### Prep work per person (tonight)
 
@@ -322,8 +315,7 @@ we chose it over the obvious alternative**, and answer the "be ready for" questi
 | **Prometheus** (+ prometheus-client) | v3.5.0 / 0.26.0 | Scrapes `/metrics` from the 3 services; 5 alert rules | `infra/prometheus/` | "Which alerts?" High5xxRate, HighPredictLatencyP95, SlotDown, ActiveSlotWithoutModel, PredictionLogFailures |
 | **Grafana** | 12.1.1 | 4 dashboards provisioned from code (no manual clicking), Prometheus + Postgres data sources | `infra/grafana/` | "Dashboards as code?" Yes, JSON files in git, provisioned when the container starts |
 | **Evidently** | 0.7.23 | Drift: KS (numeric), chi-square (categorical), α 0.05; a scipy fallback must agree to 1e-3 | `src/fairxai/monitoring/drift.py` | "Why a fallback?" It guards against library changes; the agreement test already caught a chi-square mismatch |
-| **GitHub Actions + ruff + pytest** | ruff 0.17.1 / pytest 9.1.1 | CI on every push: lint, format, tree check, 258 tests | `.github/workflows/ci.yml`, `tests/` | "What's not in CI yet?" Security scans, Trivy, image build, release (Phase 11) |
-| **Airflow** *(planned)* | – | Phase 9: scheduled monitoring and retraining DAGs | `pipelines/dags/` (not yet created) | Say clearly that it is **not built yet**; monitoring runs from the CLI today |
+| **GitHub Actions + ruff + pytest** | ruff 0.17.1 / pytest 9.1.1 | CI on every push: lint, format, tree check, 258 tests | `.github/workflows/ci.yml`, `tests/` | "What runs in CI?" Lint, format check, repo-tree check and the full test suite on every push |
 
 ### Cross-cutting (anyone can answer)
 
