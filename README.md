@@ -9,6 +9,10 @@ dashboards.
 The binding specification is [`docs/SPEC.md`](docs/SPEC.md). The project is built phase by phase
 (SPEC Section F), and every phase has a write-up of real command output in [`docs/evidence/`](docs/evidence/).
 
+**Presenting the project?** [`docs/demo_plan.md`](docs/demo_plan.md) has the full demo script: a pre-demo
+checklist, copy-paste commands, live metrics (latency, blue-green flip, monitoring windows 1–5), expert
+Q&A, and a split of sections and MLOps tools across three presenters.
+
 ---
 
 ## Contents
